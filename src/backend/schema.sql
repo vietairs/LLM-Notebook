@@ -1,0 +1,25 @@
+-- schema.sql
+DROP TABLE IF EXISTS notes;
+DROP TABLE IF EXISTS chats;
+DROP TABLE IF EXISTS files;
+
+CREATE TABLE notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    citations INTEGER DEFAULT 0
+);
+
+CREATE TABLE chats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    note_id INTEGER,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    FOREIGN KEY (note_id) REFERENCES notes (id)
+);
+
+CREATE TABLE files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    filename TEXT NOT NULL,
+    filepath TEXT NOT NULL
+);

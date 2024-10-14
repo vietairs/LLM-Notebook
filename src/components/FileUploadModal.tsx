@@ -11,6 +11,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ isOpen, onClose, onUp
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [sources, setSources] = useState<any[]>([]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -26,7 +27,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ isOpen, onClose, onUp
       formData.append('file', selectedFile);
 
       try {
-        const response = await fetch('http://localhost:8000', {
+        const response = await fetch('http://localhost:8000/upload', {
           method: 'POST',
           body: formData,
         });
@@ -37,6 +38,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ isOpen, onClose, onUp
 
         const data = await response.json();
         onUpload(selectedFile, data.result);
+        setSources([...sources, { file: selectedFile, result: data.result }]);
         setSelectedFile(null);
         onClose();
       } catch (error) {
@@ -46,6 +48,11 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ isOpen, onClose, onUp
         setUploading(false);
       }
     }
+  };
+
+  const handleDelete = (index: number) => {
+    const newSources = sources.filter((_, i) => i !== index);
+    setSources(newSources);
   };
 
   const allowedFileTypes = [
@@ -93,6 +100,19 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ isOpen, onClose, onUp
           >
             {uploading ? 'Uploading...' : 'Upload'}
           </button>
+          <div className="mt-4">
+          {sources.map((source, index) => (
+            <div key={index} className="flex justify-between items-center bg-gray-700 p-2 rounded-md mb-2">
+              <span>{source.file.name}</span>
+              <button
+                onClick={() => handleDelete(index)}
+                className="text-red-500 hover:text-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
         </div>
       </div>
     </div>

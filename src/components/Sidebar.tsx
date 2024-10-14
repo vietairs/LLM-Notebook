@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, Plus, CheckSquare } from 'lucide-react';
+import { Upload, Plus, CheckSquare, Trash2 } from 'lucide-react';
 import FileUploadModal from './FileUploadModal';
 
 interface SidebarProps {
@@ -7,7 +7,7 @@ interface SidebarProps {
   setSelectedSource: (source: string | null) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ selectedSource, setSelectedSource }) => {
+const Sidebar: React.FC<SidebarProps> = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sources, setSources] = useState([
     { id: 'diego-thesis', name: 'Diego Thesis.pdf' }
@@ -23,6 +23,10 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedSource, setSelectedSource }) 
     // TODO: Store the processing result for later use (e.g., in a state or context)
     
     setIsModalOpen(false);
+  };
+
+  const handleDelete = (id: string) => {
+    setSources(sources.filter(source => source.id !== id));
   };
 
   return (
@@ -41,23 +45,19 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedSource, setSelectedSource }) 
       </div>
       <ul className="space-y-2 flex-1 overflow-y-auto">
         {sources.map((source) => (
-          <li
-            key={source.id}
-            className={`flex items-center space-x-2 p-2 rounded cursor-pointer ${
-              selectedSource === source.id ? 'bg-gray-700' : 'hover:bg-gray-700'
-            }`}
-            onClick={() => setSelectedSource(source.id)}
-          >
-            <CheckSquare className={`h-4 w-4 ${selectedSource === source.id ? 'text-blue-500' : 'text-gray-400'}`} />
-            <span>{source.name}</span>
+          <li key={source.id} className="flex items-center justify-between bg-gray-700 p-2 rounded-md">
+            <span className="text-white">{source.name}</span>
+            <button onClick={() => handleDelete(source.id)} className="text-red-500 hover:text-red-700">
+              <Trash2 className="h-4 w-4" />
+            </button>
           </li>
         ))}
       </ul>
-      <button className="mt-4 text-gray-400 flex items-center space-x-2">
-        <Plus className="h-4 w-4" />
-        <span>Add source</span>
-      </button>
-      <FileUploadModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onUpload={handleFileUpload} />
+      <FileUploadModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onUpload={handleFileUpload}
+      />
     </aside>
   );
 };

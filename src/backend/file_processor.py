@@ -1,80 +1,71 @@
 import json
 import os
-from http.server import BaseHTTPRequestHandler, HTTPServer
-import cgi
+import requests
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from werkzeug.utils import secure_filename
 from openai_chat import generate_response
 
-class FileProcessor(BaseHTTPRequestHandler):
-    def _set_headers(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.end_headers()
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})  # Enable CORS for specific origin
 
-    def do_OPTIONS(self):
-        self._set_headers()
+UPLOAD_FOLDER = 'uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-    def do_POST(self):
-        ctype, pdict = cgi.parse_header(self.headers.get('content-type'))
+@app.route('/chat', methods=['POST'])
+def process_file():
+    try:
+        data = request.get_json()
         
-        if ctype == 'application/json':
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length)
-            data = json.loads(post_data.decode('utf-8'))
+        user_message = data['message']
+        chat_history = data['chatHistory']
+        
+        response = generate_response(user_message, chat_history)
+        
+        # Log the request and response
+        app.logger.info(f"Received request: {data}")
+        app.logger.info(f"Generated response: {response}")
+        
+        return jsonify({"response": response})
+    except Exception as e:
+        app.logger.error(f"Error processing request: {e}")
+        return jsonify({"error": str(e)}), 500
 
-            if self.path == '/chat':
-                user_message = data.get('message', '')
-                chat_history = data.get('chatHistory', [])
-                response = generate_response(user_message, chat_history)
-                self._set_headers()
-                self.wfile.write(json.dumps({'response': response}).encode())
-            elif self.path == '/settings':
-                model = data.get('model', 'openai')
-                os.environ['DEFAULT_MODEL'] = model
-                self._set_headers()
-                self.wfile.write(json.dumps({'status': 'success'}).encode())
-            else:
-                self._set_headers()
-                self.wfile.write(json.dumps({'error': 'Invalid endpoint'}).encode())
-        elif ctype == 'multipart/form-data':
-            form = cgi.FieldStorage(
-                fp=self.rfile,
-                headers=self.headers,
-                environ={'REQUEST_METHOD': 'POST'}
-            )
-            
-            file_item = form['file']
-            
-            if file_item.filename:
-                file_content = file_item.file.read()
-                file_type = file_item.type
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+    if file:
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(file_path)
+        response = send_file_to_lmstudio(file_path)
+        return jsonify({"response": response})
 
-                # Process the file based on its type
-                if file_type.startswith('image/'):
-                    # Placeholder for image processing
-                    result = f"Processed image: {file_item.filename}"
-                    # result = process_image(file_content)
-                else:
-                    # Placeholder for text processing
-                    result = f"Processed document: {file_item.filename}"
-                    # result = process_text(file_content)
+def send_file_to_lmstudio(file_path):
+    try:
+        lmstudio_api_base = os.getenv("LMSTUDIO_API_BASE")
+        lmstudio_api_key = os.getenv("LMSTUDIO_API_KEY")
+        headers = {
+            "Authorization": f"Bearer {lmstudio_api_key}",
+            "Content-Type": "application/json"
+        }
+        with open(file_path, 'r') as file:
+            file_content = file.read()
+        data = {
+            "model": "lmstudio-model",  # Adjust this to the specific model name for LM-Studio
+            "text": file_content
+        }
+        response = requests.post(f"{lmstudio_api_base}/embed", headers=headers, json=data)
+        response = response.json()
+        return response
+    except Exception as e:
+        app.logger.error(f"Error in send_file_to_lmstudio: {e}")
+        return {"error": str(e)}
 
-                self._set_headers()
-                self.wfile.write(json.dumps({'result': result}).encode())
-            else:
-                self._set_headers()
-                self.wfile.write(json.dumps({'error': 'No file received'}).encode())
-        else:
-            self._set_headers()
-            self.wfile.write(json.dumps({'error': 'Unsupported Media Type'}).encode())
-
-def run(server_class=HTTPServer, handler_class=FileProcessor, port=8000):
-    server_address = ('', port)
-    httpd = server_class(server_address, handler_class)
-    print(f'Starting server on port {port}')
-    httpd.serve_forever()
-
-if __name__ == '__main__':
-    run()
+if __name__ == "__main__":
+    app.run(port=8000)

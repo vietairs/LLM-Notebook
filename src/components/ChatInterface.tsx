@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef  } from 'react';
 import { MessageSquare, Send } from 'lucide-react';
 
 interface Note {
@@ -16,15 +16,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedNote }) => {
   const [message, setMessage] = useState('');
   const [chatHistory, setChatHistory] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const handleSendMessage = async () => {
+    console.log('handleSendMessage called'); // Log at the start of the function
+
     if (message.trim() === '') return;
 
-    const updatedHistory = [...chatHistory, { role: 'user', content: message }];
+    const updatedHistory = [...chatHistory, { role: 'user' as 'user', content: message }];
     setChatHistory(updatedHistory);
     setIsLoading(true);
 
     try {
+      console.log('Sending request to backend...'); // Log before sending request for debugging
       const response = await fetch('http://localhost:8000/chat', {
         method: 'POST',
         headers: {
@@ -35,25 +39,36 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedNote }) => {
           chatHistory: updatedHistory,
         }),
       });
+      console.log('Received response status:', response.status); // Log response status for debugging
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Failed to get response from server:', errorText);
         throw new Error('Failed to get response from server');
       }
 
       const data = await response.json();
-      setChatHistory([...updatedHistory, { role: 'assistant', content: data.response }]);
+      console.log('Received response:', data); // Log the response for debugging
+      setChatHistory([...updatedHistory, { role: 'assistant' as 'assistant', content: data.response }]);
     } catch (error) {
       console.error('Error sending message:', error);
-      setChatHistory([...updatedHistory, { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' }]);
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      setChatHistory([...updatedHistory, { role: 'assistant', content: `Sorry, I encountered an error: ${errorMessage}. Please try again.` }]);
     } finally {
       setIsLoading(false);
       setMessage('');
     }
   };
 
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatHistory]);
+
   return (
     <div className="flex-1 flex flex-col">
-      <div className="flex-1 p-4 overflow-y-auto">
+      <div className="flex-1 p-4 overflow-y-auto" ref={chatContainerRef}>
         {selectedNote ? (
           <div className="bg-gray-700 p-4 rounded-lg mb-4">
             <h2 className="text-xl font-semibold mb-2">{selectedNote.title}</h2>
